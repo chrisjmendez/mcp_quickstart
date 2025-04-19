@@ -1,0 +1,12 @@
+version: '3.9'
+
+services:
+  sqlite-mcp-server:
+    build: .
+    ports:
+      - "8080:8080"  # Or whichever port MCP uses
+    volumes:
+      - ./data:/data  # Mount for SQLite DB
+    environment:
+      - DB_PATH=~/test.db
+    restart: unless-stopped
