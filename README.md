@@ -16,14 +16,24 @@ docker-compose up
 Claude Desktop connects to ```localhost:8080```
 
 
+
+
+
 # Troubleshooting
+
+## Check SQL
+
+```
+ docker exec -it $(docker ps --filter "name=mcp-server" -q) sqlite3 /data/test.db
+```
 
 ## Docker Cache
 
+stop & remove containers + volumes
+rebuild fresh
+run docker
 ```
-docker-compose down -v  # stop & remove containers + volumes
-docker-compose build    # rebuild fresh
-docker-compose up       # relaunch
+docker-compose down -v && docker-compose build && docker-compose up
 ```
 
 
