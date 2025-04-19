@@ -51,6 +51,17 @@ INSERT INTO metadata (key, value) VALUES
   ('title', 'Product Database'),
   ('description', 'A sample database of tech products.'),
   ('version', '1.0');
+
+-- Documents table (expected by Claude MCP)
+CREATE TABLE documents (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  content TEXT
+);
+
+INSERT INTO documents (name, content) VALUES
+  ('welcome', 'Hello Claude, welcome to the database.'),
+  ('about', 'This is a product and metadata SQLite dataset used for testing Claude MCP queries.');
 EOF
 
   echo "✅ Database created and initialized."
@@ -71,6 +82,23 @@ INSERT OR REPLACE INTO metadata (key, value) VALUES
   ('title', 'Product Database'),
   ('description', 'A sample database of tech products.'),
   ('version', '1.0');
+EOF
+  fi
+
+  # Sanity check for documents table
+  if ! sqlite3 "$DB_PATH" "SELECT 1 FROM documents LIMIT 1;" 2>/dev/null; then
+    echo "⚠️ Documents table missing. Re-creating..."
+
+    sqlite3 "$DB_PATH" <<EOF
+CREATE TABLE IF NOT EXISTS documents (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  content TEXT
+);
+
+INSERT INTO documents (name, content) VALUES
+  ('welcome', 'Hello Claude, welcome to the database.'),
+  ('about', 'This is a product and metadata SQLite dataset used for testing Claude MCP queries.');
 EOF
   fi
 fi

@@ -34,10 +34,7 @@ ls ~/.local/bin/uvx
 ```
 
 
-
-
-
-## Update Env Variables
+### Update Env Variables
 
 ```
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
@@ -54,6 +51,10 @@ launchctl setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/
 ```
 
 
+## Configure Clade
+
+Create ```~/Library/Application\ Support/Claude/claude_desktop_config.json``` and add this
+
 ```
 {
   "mcpServers": {
@@ -64,6 +65,7 @@ launchctl setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/
   }
 }
 ````
+
 
 Verify your work by simulating Claude
 
