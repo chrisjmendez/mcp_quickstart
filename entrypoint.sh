@@ -1,13 +1,19 @@
 #!/bin/bash
-set -e
 
-# Ensure /data exists (inside the container)
+DB_PATH="/data/test.db"
+
+echo "📁 Checking database at $DB_PATH..."
+
+# Create /data if it doesn't exist
 mkdir -p /data
 
-if [ ! -f /data/test.db ]; then
-  echo "🛠️ Initializing SQLite database..."
-  sqlite3 /data/test.db <<EOF
-CREATE TABLE IF NOT EXISTS products (
+# If DB doesn't exist, create it
+if [ ! -f "$DB_PATH" ]; then
+  echo "🛠️ Creating new database at $DB_PATH..."
+
+  sqlite3 "$DB_PATH" <<EOF
+-- Products table
+CREATE TABLE products (
   id INTEGER PRIMARY KEY,
   name TEXT,
   price REAL
@@ -34,10 +40,40 @@ INSERT INTO products (name, price) VALUES
   ('Gaming Headset', 159.99),
   ('Fitness Tracker', 119.99),
   ('Portable SSD', 179.99);
+
+-- Metadata table (required by Claude)
+CREATE TABLE metadata (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+INSERT INTO metadata (key, value) VALUES
+  ('title', 'Product Database'),
+  ('description', 'A sample database of tech products.'),
+  ('version', '1.0');
 EOF
+
+  echo "✅ Database created and initialized."
 else
-  echo "✅ SQLite DB already exists. Skipping init."
+  echo "✅ Existing database found. Verifying tables..."
+
+  # Sanity check for metadata table
+  if ! sqlite3 "$DB_PATH" "SELECT 1 FROM metadata LIMIT 1;" 2>/dev/null; then
+    echo "⚠️ Metadata table missing. Re-creating..."
+
+    sqlite3 "$DB_PATH" <<EOF
+CREATE TABLE IF NOT EXISTS metadata (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+INSERT OR REPLACE INTO metadata (key, value) VALUES
+  ('title', 'Product Database'),
+  ('description', 'A sample database of tech products.'),
+  ('version', '1.0');
+EOF
+  fi
 fi
 
-# Start your server
+echo "🚀 Starting MCP server..."
 exec uvicorn my_mcp_server:app --host 0.0.0.0 --port 8080

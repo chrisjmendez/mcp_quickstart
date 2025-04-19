@@ -33,6 +33,10 @@ Confirm Astral is installed
 ls ~/.local/bin/uvx
 ```
 
+
+
+
+
 ## Update Env Variables
 
 ```
@@ -41,6 +45,31 @@ source ~/.zshrc
 ```
 
 
+Unfortunately, Claues cannot find uvx in its environemnt. Claude was launched from the macOS GUI which doesnt load ```~/.zshrc```
+
+The solution is to help Claude Desktop find uvx globally when the launched from the Dock or Spotlight.
+
+```
+launchctl setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+```
+
+
+```
+{
+  "mcpServers": {
+    "sqlite": {
+      "command": "uvx",
+      "args": ["mcp-server-sqlite", "--db-path", "/Users/YOUR_USERNAME/path/to/mcp_quickstart/data/test.db"]
+    }
+  }
+}
+````
+
+Verify your work by simulating Claude
+
+```
+ uvx mcp-server-sqlite --db-path /Users/YOUR_USERNAME/path/to/mcp_quickstart/data/test.db
+```
 
 
 
