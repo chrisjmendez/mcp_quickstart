@@ -14,11 +14,14 @@ WORKDIR /app
 COPY init_db.sh /app/init_db.sh
 COPY requirements.txt /app/requirements.txt
 
-# Python deps (if needed)
+# Python deps
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Init DB
 RUN chmod +x init_db.sh && ./init_db.sh
 
-# Start MCP server (replace with your actual start cmd)
+# Copy app code
+COPY . /app
+
+# Start MCP server
 CMD ["uvicorn", "my_mcp_server:app", "--host", "0.0.0.0", "--port", "8080"]
