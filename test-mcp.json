@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"test123","method":"query","params":{"sql":"SELECT * FROM documents LIMIT 1"}}

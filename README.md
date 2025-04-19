@@ -1,137 +1,164 @@
-# MCP Quickstart
+# 🧠 MCP Quickstart: Claude + SQLite + Docker
 
-Step 1 - Build Docker
+### TL;DR: Build a secure local Claude brain using Docker, SQLite, and `uvx`.
 
-```
+---
+
+## 🛡️ Step 1: Build & Run the Docker SQLite Server
+
+```bash
 docker-compose build
-```
-
-
-Step 2 - Run Docker
-
-```
 docker-compose up
 ```
 
-Claude Desktop connects to ```localhost:8080```
+Your server will be live at `http://localhost:8080`, ready to accept MCP-style queries.
 
+---
 
+## 🧠 Step 2: Install Astral (`uv` / `uvx`)
 
-# Connecting Claude Desktop
+Astral is the MCP-compatible package manager.
 
-## Install Astral
-
-Astral is a package manager for Python
-
-```
+```bash
 curl -Ls https://astral.sh/uv/install.sh | sh
 ```
 
-Confirm Astral is installed
+Verify it:
 
-```
-ls ~/.local/bin/uvx
-```
-
-
-### Update Env Variables
-
-```
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+```bash
+uvx mcp-server-sqlite --help
 ```
 
+---
 
-Unfortunately, Claues cannot find uvx in its environemnt. Claude was launched from the macOS GUI which doesnt load ```~/.zshrc```
+## 🔧 Step 3: Make `uvx` Available to Claude Desktop
 
-The solution is to help Claude Desktop find uvx globally when the launched from the Dock or Spotlight.
+Claude launched via Spotlight/Dock doesn’t see your shell config. So we have to tell macOS:
 
-```
+```bash
 launchctl setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 ```
 
+You can also verify this:
 
-## Add 
-
-Craete ```~/bin/mcp-server-sqlite``` 
-
-```
-#!/bin/bash
-
-DB_URL="http://localhost:8080/mcp"
-
-while IFS= read -r line; do
-  if [[ -z "$line" ]]; then
-    continue
-  fi
-
-  # Sanity: validate JSON input is MCP-ish
-  if ! echo "$line" | grep -q '"jsonrpc": *"2.0"'; then
-    echo '{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Invalid Request"}}'
-    continue
-  fi
-
-  # Forward to FastAPI server
-  response=$(curl -s -X POST "$DB_URL" \
-    -H "Content-Type: application/json" \
-    -d "$line")
-
-  echo "$response"
-done
+```bash
+launchctl getenv PATH
 ```
 
-Set Permissions
+### 🔗 Add Symlink for `uv` (required by `uvx`)
+
+Claude expects `uv` at `/usr/local/bin/uv`, but Astral installs it in `~/.local/bin/uv`. Fix that with:
+
+```bash
+sudo ln -s $HOME/.local/bin/uv /usr/local/bin/uv
 ```
-chmod +x ~/bin/mcp-server-sqlite
+
+Verify:
+
+```bash
+uvx mcp-server-sqlite --help
 ```
 
+---
 
-## Configure Clade
+## ⚙️ Step 4: Configure Claude to Use Your SQLite DB
 
-Create ```~/Library/Application\ Support/Claude/claude_desktop_config.json``` and add this
+Create or edit:
 
+```bash
+~/Library/Application Support/Claude/claude_desktop_config.json
 ```
+
+Insert:
+
+```json
 {
   "mcpServers": {
     "sqlite": {
       "command": "uvx",
-      "args": ["mcp-server-sqlite", "--db-path", "/Users/YOUR_USERNAME/path/to/mcp_quickstart/data/test.db"]
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "/Users/YOUR_USERNAME/Desktop/mcp_quickstart/data/test.db"
+      ]
     }
   }
 }
-````
-
-
-Verify your work by simulating Claude
-
-```
- uvx mcp-server-sqlite --db-path /Users/YOUR_USERNAME/path/to/mcp_quickstart/data/test.db
 ```
 
+✅ Make sure to replace `YOUR_USERNAME` with your actual username.
 
+---
 
+## 🧪 Step 5: Test It Manually
 
-# Troubleshooting
+Try this from the terminal:
 
-## Check SQL
-
+```bash
+echo '{"jsonrpc":"2.0","id":"debug","method":"query","params":{"sql":"SELECT * FROM products LIMIT 1"}}' \
+  | uvx mcp-server-sqlite --db-path /Users/YOUR_USERNAME/Desktop/mcp_quickstart/data/test.db
 ```
- docker exec -it $(docker ps --filter "name=mcp-server" -q) sqlite3 /data/test.db
+
+You should get back:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "debug",
+  "result": {
+    "columns": ["id", "name", "price"],
+    "rows": [[1, "Widget", 19.99]]
+  }
+}
 ```
 
-## Docker Cache
+---
 
-stop & remove containers + volumes
-rebuild fresh
-run docker
+## 🧰 Troubleshooting
+
+### 🧹 Check if the DB is accessible
+
+```bash
+docker exec -it $(docker ps --filter "name=mcp-server" -q) sqlite3 /data/test.db
 ```
+
+Then run:
+
+```sql
+SELECT * FROM products LIMIT 1;
+```
+
+---
+
+### 🔄 Rebuild the Docker container
+
+```bash
 docker-compose down -v && docker-compose build && docker-compose up
 ```
 
+---
 
-# Resources
+## 💬 Bonus: Simulate Claude Queries with a Test JSON
 
-https://www.claudemcp.com/docs/quickstart
+```bash
+echo '{"jsonrpc":"2.0","id":"test123","method":"query","params":{"sql":"SELECT * FROM products"}}' > test-mcp.json
 
+cat test-mcp.json | uvx mcp-server-sqlite --db-path /Users/YOUR_USERNAME/Desktop/mcp_quickstart/data/test.db
+```
 
+---
+
+## 📚 Resources
+
+- Claude MCP Docs → [https://www.claudemcp.com/docs/quickstart](https://www.claudemcp.com/docs/quickstart)
+- Model Context Protocol → [https://modelcontextprotocol.io](https://modelcontextprotocol.io)
+
+---
+
+## ✅ You now have:
+
+- 🐻 Dockerized SQLite server
+- 🧪 Secure query interface via FastAPI + Uvicorn
+- 📡 Claude MCP bridge using `uvx` + `mcp-server-sqlite`
+- 🧠 A local Claude brain that talks SQL
 
