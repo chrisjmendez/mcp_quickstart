@@ -1,7 +1,7 @@
 #!/bin/bash
 mkdir -p /data
 
-sqlite3 ~/test.db <<EOF
+sqlite3 /data/test.db <<EOF
 CREATE TABLE IF NOT EXISTS products (
   id INTEGER PRIMARY KEY,
   name TEXT,
