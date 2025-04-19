@@ -17,6 +17,32 @@ Claude Desktop connects to ```localhost:8080```
 
 
 
+# Connecting Claude Desktop
+
+## Install Astral
+
+Astral is a package manager for Python
+
+```
+curl -Ls https://astral.sh/uv/install.sh | sh
+```
+
+Confirm Astral is installed
+
+```
+ls ~/.local/bin/uvx
+```
+
+## Update Env Variables
+
+```
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+
+
+
 
 
 # Troubleshooting
