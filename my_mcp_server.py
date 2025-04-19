@@ -1,18 +1,15 @@
-from fastapi import FastAPI
-from fastapi import WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 import sqlite3
 
 app = FastAPI()
 
-DB_PATH = "/data/test.db"  # Full path inside the Docker container
+DB_PATH = "/data/test.db"
 
-# Home route
 @app.get("/")
 def root():
     return {"message": "MCP SQLite Server is alive"}
 
-# Static GET route: all products
 @app.get("/products")
 def get_products():
     conn = sqlite3.connect(DB_PATH)
@@ -22,47 +19,50 @@ def get_products():
     conn.close()
     return {"products": rows}
 
-# Schema for MCP-style POST query
-class MCPRequest(BaseModel):
-    query: str
-
-# Dynamic SQL query via MCP
 @app.post("/mcp")
-def mcp_query(req: MCPRequest):
+async def mcp_handler(request: Request):
+    data = await request.json()
+    query_id = data.get("id")
+    method = data.get("method")
+    params = data.get("params", {})
+    sql = params.get("sql")
+
+    if method != "query" or not sql:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "jsonrpc": "2.0",
+                "id": query_id,
+                "error": {
+                    "code": -32600,
+                    "message": "Invalid Request"
+                }
+            }
+        )
+
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute(req.query)
+        cursor.execute(sql)
         rows = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
+        columns = [desc[0] for desc in cursor.description]
         conn.close()
-        return {"columns": columns, "rows": rows}
+
+        return {
+            "jsonrpc": "2.0",
+            "id": query_id,
+            "result": {
+                "columns": columns,
+                "rows": rows
+            }
+        }
+
     except Exception as e:
-        return {"error": str(e)}
-
-@app.websocket("/ws/mcp")
-async def websocket_mcp(websocket: WebSocket):
-    await websocket.accept()
-    await websocket.send_text("🟢 Connected to MCP SQLite WebSocket.")
-
-    try:
-        while True:
-            query = await websocket.receive_text()
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute(query)
-                rows = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description] if cursor.description else []
-                conn.close()
-                await websocket.send_json({
-                    "columns": columns,
-                    "rows": rows
-                })
-            except Exception as e:
-                await websocket.send_json({
-                    "error": str(e)
-                })
-
-    except WebSocketDisconnect:
-        print("🔌 WebSocket disconnected")
+        return {
+            "jsonrpc": "2.0",
+            "id": query_id,
+            "error": {
+                "code": -32000,
+                "message": str(e)
+            }
+        }

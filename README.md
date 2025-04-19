@@ -51,6 +51,41 @@ launchctl setenv PATH "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/
 ```
 
 
+## Add 
+
+Craete ```~/bin/mcp-server-sqlite``` 
+
+```
+#!/bin/bash
+
+DB_URL="http://localhost:8080/mcp"
+
+while IFS= read -r line; do
+  if [[ -z "$line" ]]; then
+    continue
+  fi
+
+  # Sanity: validate JSON input is MCP-ish
+  if ! echo "$line" | grep -q '"jsonrpc": *"2.0"'; then
+    echo '{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Invalid Request"}}'
+    continue
+  fi
+
+  # Forward to FastAPI server
+  response=$(curl -s -X POST "$DB_URL" \
+    -H "Content-Type: application/json" \
+    -d "$line")
+
+  echo "$response"
+done
+```
+
+Set Permissions
+```
+chmod +x ~/bin/mcp-server-sqlite
+```
+
+
 ## Configure Clade
 
 Create ```~/Library/Application\ Support/Claude/claude_desktop_config.json``` and add this
