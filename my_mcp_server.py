@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import sqlite3
 
@@ -38,8 +39,6 @@ def mcp_query(req: MCPRequest):
         return {"columns": columns, "rows": rows}
     except Exception as e:
         return {"error": str(e)}
-
-from fastapi import WebSocket, WebSocketDisconnect
 
 @app.websocket("/ws/mcp")
 async def websocket_mcp(websocket: WebSocket):
