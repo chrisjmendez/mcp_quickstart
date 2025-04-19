@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system deps
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     sqlite3 \
     git \
@@ -10,18 +10,14 @@ RUN apt-get update && apt-get install -y \
 # Set up working directory
 WORKDIR /app
 
-# Copy init SQL + setup script
-COPY init_db.sh /app/init_db.sh
+# Copy requirements and install Python dependencies
 COPY requirements.txt /app/requirements.txt
-
-# Python deps
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Init DB
-RUN chmod +x init_db.sh && ./init_db.sh
-
-# Copy app code
+# Copy app code and entrypoint
 COPY . /app
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Start MCP server
-CMD ["uvicorn", "my_mcp_server:app", "--host", "0.0.0.0", "--port", "8080"]
+# Set entrypoint that initializes DB and starts server
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -8,5 +8,5 @@ services:
     volumes:
       - ./data:/data  # Mount for SQLite DB
     environment:
-      - DB_PATH=~/test.db
+      - DB_PATH=/data/test.db
     restart: unless-stopped
