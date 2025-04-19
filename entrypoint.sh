@@ -1,5 +1,9 @@
 #!/bin/bash
-# Init DB if it doesn't exist
+set -e
+
+# Ensure /data exists (inside the container)
+mkdir -p /data
+
 if [ ! -f /data/test.db ]; then
   echo "🛠️ Initializing SQLite database..."
   sqlite3 /data/test.db <<EOF
@@ -35,5 +39,5 @@ else
   echo "✅ SQLite DB already exists. Skipping init."
 fi
 
-# Start server
+# Start your server
 exec uvicorn my_mcp_server:app --host 0.0.0.0 --port 8080
