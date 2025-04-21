@@ -1,3 +1,5 @@
 uvicorn
 fastapi
 sqlite-utils
+requests
+dotenv
