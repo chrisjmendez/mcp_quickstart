@@ -1,12 +1,24 @@
 version: '3.9'
 
 services:
-  sqlite-mcp-server:
-    build: .
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
     ports:
-      - "8080:8080"  # Or whichever port MCP uses
+      - "8080:8080"
     volumes:
-      - ./data:/data  # Mount for SQLite DB
+      - ./data:/data
     environment:
       - DB_PATH=/data/test.db
+    restart: unless-stopped
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8090:8090"
+    depends_on:
+      - mcp-server
     restart: unless-stopped
