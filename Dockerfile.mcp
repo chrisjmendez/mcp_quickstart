@@ -1,18 +1,26 @@
 # Dockerfile.mcp
 FROM python:3.11-slim
 
+# System deps
 RUN apt-get update && apt-get install -y \
     sqlite3 \
-    git \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
+# Working directory
 WORKDIR /app
 
+# Copy and install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy app code and entrypoint
 COPY . /app
 RUN chmod +x entrypoint.sh
 
+# Expose SQLite DB path
+ENV DB_PATH=/data/test.db
+
+# Start MCP server
 ENTRYPOINT ["./entrypoint.sh"]
