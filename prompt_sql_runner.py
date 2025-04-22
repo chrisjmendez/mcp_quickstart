@@ -1,22 +1,23 @@
-import json
-import requests
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+import requests
+import json
+import os
 
 app = FastAPI()
 
-# Enable CORS for frontend
+# Allow all origins for demo purposes — you can lock this down in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev only
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Your database schema to help LLaMA understand context
+# Define your database schema so the AI knows what it's working with
 DB_SCHEMA = """
 Table: products
 Columns:
@@ -25,28 +26,28 @@ Columns:
   - price: real
 """
 
-# Use Ollama's HTTP API instead of subprocess
-def prompt_llama_for_sql(question):
-    prompt = f"You are an AI that converts natural language to SQL for this SQLite schema:\n{DB_SCHEMA}\n\nQuestion: {question}\nSQL:"
+# Use env variable to access Ollama running on the Docker host
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
+
+def prompt_llama_for_sql(user_question):
+    system_prompt = f"You are an AI that converts natural language to SQL for this SQLite schema:\n{DB_SCHEMA}\n\nQuestion: {user_question}\nSQL:"
+
+    payload = {
+        "model": "codellama:instruct",
+        "prompt": system_prompt,
+        "stream": False
+    }
+
     try:
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "codellama:instruct", "prompt": prompt, "stream": False},
-            timeout=30
-        )
-        response.raise_for_status()
-        output = response.json().get("response", "").strip()
-
-        # Grab the first line that looks like SQL
-        for line in output.splitlines():
-            if line.strip().lower().startswith("select"):
-                return line.strip(), "✅ success"
-
-        return "SELECT * FROM products LIMIT 5;", "⚠️ fallback to default"
+        res = requests.post(f"{OLLAMA_URL}/api/generate", json=payload)
+        res.raise_for_status()
+        response = res.json()
+        output = response.get("response", "")
+        sql_lines = [line for line in output.splitlines() if "select" in line.lower()]
+        return sql_lines[0] if sql_lines else "SELECT * FROM products LIMIT 5;", output
     except Exception as e:
-        return "SELECT * FROM products LIMIT 5;", f"❌ Error: {str(e)}"
+        return "SELECT * FROM products LIMIT 5;", f"-- Error from LLaMA: {e}"
 
-# Forward SQL to MCP server
 def run_sql_on_local_mcp(sql):
     mcp_payload = {
         "jsonrpc": "2.0",
@@ -56,71 +57,71 @@ def run_sql_on_local_mcp(sql):
             "sql": sql
         }
     }
+
     try:
-        response = requests.post("http://localhost:8080/mcp", json=mcp_payload)
+        response = requests.post("http://mcp-server:8080/mcp", json=mcp_payload)
         response.raise_for_status()
         return response.json()
     except Exception as e:
         return {"error": str(e)}
 
-# Frontend input
 class UserQuestion(BaseModel):
     question: str
 
-# Serve HTML UI
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui():
     return """
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Ask Your DB</title>
-      <meta charset="UTF-8" />
-      <style>
-        body { font-family: sans-serif; max-width: 700px; margin: 2rem auto; }
-        textarea, pre { width: 100%; font-family: monospace; font-size: 1rem; }
-        textarea { height: 100px; }
-        button { margin: 10px 0; font-size: 1rem; }
-      </style>
+        <title>Ask LLaMA</title>
+        <style>
+            body { font-family: sans-serif; max-width: 700px; margin: 2em auto; padding: 1em; }
+            textarea { width: 100%; height: 100px; font-size: 1em; }
+            pre { background: #f6f6f6; padding: 1em; border: 1px solid #ccc; white-space: pre-wrap; }
+        </style>
     </head>
     <body>
-      <h1>🧠 Ask Your Database</h1>
-      <textarea id="question" placeholder="e.g. What are the top 5 most expensive items?"></textarea><br/>
-      <button onclick="ask()">Ask</button>
-      <h2>🔎 SQL:</h2>
-      <pre id="sql">(waiting)</pre>
-      <h2>📊 Result:</h2>
-      <pre id="result">(waiting)</pre>
-      <script>
+        <h1>🤖 Ask your database anything</h1>
+        <textarea id="question" placeholder="E.g. What are the top 5 most expensive items?"></textarea><br>
+        <button onclick="ask()">Ask</button>
+        <h3>🔍 SQL Generated:</h3>
+        <pre id="sql">...</pre>
+        <h3>📊 Query Result:</h3>
+        <pre id="result">...</pre>
+
+        <script>
         async function ask() {
-          const q = document.getElementById("question").value;
-          const res = await fetch("/run_llama", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: q })
-          });
-          const { sql, note } = await res.json();
-          document.getElementById("sql").textContent = sql + "  // " + note;
+            const question = document.getElementById("question").value;
+            const res = await fetch("/run_llama", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question })
+            });
+            const data = await res.json();
+            document.getElementById("sql").innerText = data.sql;
 
-          const result = await fetch("http://localhost:8080/mcp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: "web-client",
-              method: "query",
-              params: { sql }
-            })
-          }).then(res => res.json());
+            const mcpPayload = {
+                jsonrpc: "2.0",
+                id: "web-client",
+                method: "query",
+                params: { sql: data.sql }
+            };
 
-          document.getElementById("result").textContent = JSON.stringify(result, null, 2);
+            const mcpRes = await fetch("http://localhost:8080/mcp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(mcpPayload)
+            });
+
+            const result = await mcpRes.json();
+            document.getElementById("result").innerText = JSON.stringify(result, null, 2);
         }
-      </script>
+        </script>
     </body>
     </html>
     """
 
-# Route that hits LLaMA
 @app.post("/run_llama")
 async def run_llama(req: UserQuestion):
     sql, note = prompt_llama_for_sql(req.question)
