@@ -3,6 +3,9 @@
 
 
 /data/*.db
+__pycache__/
+*.py[cod]
+
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,textmate,pycharm+all,windows,powershell,react,node,vuejs
