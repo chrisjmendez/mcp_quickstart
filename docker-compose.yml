@@ -1,7 +1,25 @@
-version: '3.9'
+# -------------------------
+# ✅ docker-compose.yml
+# -------------------------
+version: '3.8'
 
 services:
-  mcp-server:
+  nginx:
+    image: nginx:latest
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - api-server
+      - sqlite-mcp-server
+
+  sqlite-mcp-server:
     build:
       context: .
       dockerfile: Dockerfile.mcp
@@ -19,6 +37,19 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "8090:8090"
-    depends_on:
-      - mcp-server
+    environment:
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+
+volumes:
+  certbot_data:
+  nginx_logs:
+  db_data:
