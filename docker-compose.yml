@@ -5,8 +5,6 @@
 # -------------------------
 version: '3.8'
 
-env_file: .env 
-
 services:
   # NGINX (serves full HTTPS after cert is issued)
   nginx:
@@ -23,6 +21,8 @@ services:
       - api-server
       - sqlite-mcp-server
     restart: unless-stopped
+    environment:
+      - DOMAIN_URL=${DOMAIN_URL}    
     entrypoint: >
       sh -c '
         until [ -f /etc/letsencrypt/live/${DOMAIN_URL}/fullchain.pem ]; do
