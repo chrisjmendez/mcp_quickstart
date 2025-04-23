@@ -5,10 +5,8 @@
 # -------------------------
 version: '3.8'
 
-env_file: .env
-
 services:
-  # 🧼 Bootstrap NGINX (HTTP only for Certbot)
+  # NGINX (bootstraps to serve HTTP for Certbot initially)
   nginx-bootstrap:
     image: nginx:latest
     container_name: nginx-bootstrap
@@ -22,7 +20,7 @@ services:
       - sqlite-mcp-server
     restart: unless-stopped
 
-  # 🔐 Full NGINX (waits for certs, then starts with HTTPS)
+  # NGINX (serves full HTTPS after cert is issued)
   nginx:
     image: nginx:latest
     container_name: nginx
@@ -40,15 +38,15 @@ services:
     restart: unless-stopped
     entrypoint: >
       sh -c '
-        while [ ! -f /etc/letsencrypt/live/${DOMAIN_URL}/fullchain.pem ]; do
-          echo "⏳ Waiting for SSL cert to exist...";
+        until [ -f /etc/letsencrypt/live/${DOMAIN_URL}/fullchain.pem ]; do
+          echo "Waiting for SSL cert for ${DOMAIN_URL}...";
           sleep 3;
         done;
-        echo "✅ SSL cert found. Launching NGINX with HTTPS!";
-        nginx -g "daemon off;";
+        echo "Certificate found, launching NGINX with HTTPS.";
+        exec nginx -g "daemon off;";
       '
 
-  # 🧠 SQLite + Claude MCP server
+  # Claude MCP SQLite server
   sqlite-mcp-server:
     build:
       context: .
@@ -61,7 +59,7 @@ services:
       - DB_PATH=/data/test.db
     restart: unless-stopped
 
-  # ⚡ FastAPI app that talks to LLaMA
+  # FastAPI app + Ollama bridge
   api-server:
     build:
       context: .
@@ -74,16 +72,25 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
-  # 🔒 Certbot - handles TLS cert renewal
+  # Certbot handles auto-renewal (cron-style loop)
   certbot:
     image: certbot/certbot
     container_name: certbot
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
-    entrypoint: /bin/sh -c "trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew --webroot -w /var/www/certbot; done"
+    entrypoint: >
+      sh -c "
+        trap exit TERM;
+        while :; do
+          echo 'Renewing cert...';
+          certbot renew --webroot -w /var/www/certbot;
+          sleep 6h;
+        done
+      "
 
 volumes:
   certbot_data:
   nginx_logs:
   db_data:
+  
