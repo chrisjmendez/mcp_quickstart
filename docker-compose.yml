@@ -1,24 +1,54 @@
 # -------------------------
-# ✅ docker-compose.yml
+# ✅ Make Nginx + Certbot + Docker Compose fully self-healing and hands-free, even if certs don’t exist yet.
+#    Production Safety
+#    Prep for SSL in a fault-tolerant way
 # -------------------------
 version: '3.8'
 
+env_file: .env
+
 services:
+  # 🧼 Bootstrap NGINX (HTTP only for Certbot)
+  nginx-bootstrap:
+    image: nginx:latest
+    container_name: nginx-bootstrap
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/bootstrap.conf:/etc/nginx/conf.d/default.conf
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - api-server
+      - sqlite-mcp-server
+    restart: unless-stopped
+
+  # 🔐 Full NGINX (waits for certs, then starts with HTTPS)
   nginx:
     image: nginx:latest
-    restart: always
+    container_name: nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
       - ./nginx/logs:/var/log/nginx
     depends_on:
       - api-server
       - sqlite-mcp-server
+    restart: unless-stopped
+    entrypoint: >
+      sh -c '
+        while [ ! -f /etc/letsencrypt/live/${DOMAIN_URL}/fullchain.pem ]; do
+          echo "⏳ Waiting for SSL cert to exist...";
+          sleep 3;
+        done;
+        echo "✅ SSL cert found. Launching NGINX with HTTPS!";
+        nginx -g "daemon off;";
+      '
 
+  # 🧠 SQLite + Claude MCP server
   sqlite-mcp-server:
     build:
       context: .
@@ -31,6 +61,7 @@ services:
       - DB_PATH=/data/test.db
     restart: unless-stopped
 
+  # ⚡ FastAPI app that talks to LLaMA
   api-server:
     build:
       context: .
@@ -38,16 +69,19 @@ services:
     ports:
       - "8090:8090"
     environment:
-      - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_URL=${OLLAMA_URL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  # 🔒 Certbot - handles TLS cert renewal
   certbot:
     image: certbot/certbot
+    container_name: certbot
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do sleep 6h & wait $${!}; certbot renew --webroot -w /var/www/certbot; done"
 
 volumes:
   certbot_data:
