@@ -1,5 +1,6 @@
 version: '3.8'
 services:
+  # NGINX (bootstraps to serve HTTP for Certbot initially)
   nginx-bootstrap:
     image: nginx:latest
     container_name: nginx-bootstrap
@@ -12,3 +13,20 @@ services:
       - api-server
       - sqlite-mcp-server
     restart: unless-stopped
+
+  # Certbot handles auto-renewal (cron-style loop)
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "
+        trap exit TERM;
+        while :; do
+          echo 'Renewing cert...';
+          certbot renew --webroot -w /var/www/certbot;
+          sleep 6h;
+        done
+      "
