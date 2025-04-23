@@ -2,6 +2,11 @@
 
 echo "🧠 Starting LLaMA + MCP + FastAPI stack (Staged SSL)..."
 
+# Load .env into environment
+set -a
+source .env
+set +a
+
 mkdir -p logs
 chmod 700 logs
 
