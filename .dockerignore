@@ -1,0 +1,8 @@
+certbot/conf
+certbot/www
+nginx/logs
+__pycache__/
+*.pyc
+*.db
+*.log
+.env
