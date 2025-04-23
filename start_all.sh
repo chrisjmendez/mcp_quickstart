@@ -42,7 +42,7 @@ sleep 5  # Allow NGINX time to bind to port 80
 # 🔒 Certbot run (only if cert doesn't exist or forced)
 if [ "$1" = "--force-cert" ] || [ ! -f "certbot/conf/live/${DOMAIN_URL}/fullchain.pem" ]; then
   echo "🔐 Running Certbot for domain: $DOMAIN_URL"
-  if ! docker-compose run --rm certbot certonly \
+  if ! docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml run --rm certbot certonly \
     --webroot -w /var/www/certbot \
     --email "$DOMAIN_EMAIL" \
     --agree-tos \
@@ -51,6 +51,7 @@ if [ "$1" = "--force-cert" ] || [ ! -f "certbot/conf/live/${DOMAIN_URL}/fullchai
       echo "❌ Certbot failed. See logs/docker.log"
       exit 1
   fi
+  echo "✅ Certbot successfully issued a certificate for $DOMAIN_URL"
 else
   echo "✅ Existing cert found. Skipping Certbot."
 fi
