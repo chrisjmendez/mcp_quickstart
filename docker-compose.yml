@@ -5,6 +5,8 @@
 # -------------------------
 version: '3.8'
 
+env_file: .env 
+
 services:
   # NGINX (serves full HTTPS after cert is issued)
   nginx:
