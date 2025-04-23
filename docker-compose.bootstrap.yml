@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  nginx-bootstrap:
+    image: nginx:latest
+    container_name: nginx-bootstrap
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf/bootstrap.conf:/etc/nginx/conf.d/default.conf
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - api-server
+      - sqlite-mcp-server
+    restart: unless-stopped
