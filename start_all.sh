@@ -57,6 +57,10 @@ else
   echo "✅ Existing cert found. Skipping Certbot."
 fi
 
+# 🛡 Fix permissions on cert files
+echo "🔧 Fixing certbot permissions..."
+sudo chown -R $USER:$USER certbot/conf
+
 # Clean up bootstrap containers (free up port 80)
 echo "🧹 Shutting down bootstrap containers..."
 docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down >> logs/docker.log 2>&1
