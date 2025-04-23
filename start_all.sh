@@ -21,13 +21,16 @@ docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d > log
 # ⏳ Give NGINX time to boot
 sleep 5
 
-# 🔒 Run Certbot manually (only if cert doesn't exist)
+# 🌐 Load domain from .env
 DOMAIN=$(grep DOMAIN_URL .env | cut -d '=' -f2)
-if [ ! -f "certbot/conf/live/${DOMAIN}/fullchain.pem" ]; then
+EMAIL=$(grep DOMAIN_EMAIL .env | cut -d '=' -f2)
+
+# 🔒 Run Certbot if needed or forced
+if [ "$1" = "--force-cert" ] || [ ! -f "certbot/conf/live/${DOMAIN}/fullchain.pem" ]; then
   echo "🔐 Running Certbot for domain: $DOMAIN"
   docker-compose run --rm certbot certonly \
     --webroot -w /var/www/certbot \
-    --email developer@routinehub.co \
+    --email ${EMAIL} \
     --agree-tos \
     --no-eff-email \
     -d $DOMAIN >> logs/docker.log 2>&1
@@ -39,7 +42,7 @@ fi
 echo "🧹 Cleaning up bootstrap containers..."
 docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down
 
-# 🧠 Stage 2: Start full production stack
+# 🚀 Stage 2: Start full HTTPS stack
 echo "🚀 Launching full HTTPS stack..."
 docker-compose up -d >> logs/docker.log 2>&1
 
@@ -60,4 +63,3 @@ echo "✅ All systems go!"
 echo "🔗 MCP:        https://$DOMAIN/mcp"
 echo "🔗 FastAPI UI: https://$DOMAIN"
 echo "📄 Logs:       ./logs/"
-
