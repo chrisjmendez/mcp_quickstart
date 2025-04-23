@@ -29,18 +29,39 @@ done
 
 rm -f logs/*.pid
 
-# Stage 1: Start bootstrap containers for HTTP-only NGINX
+# Ensure permissions are good for certbot
+sudo chown -R $USER:$USER certbot || true
+chmod -R u+rwX certbot || true
+
+# ---------------------------
+# Function: Check cert expiry
+# ---------------------------
+cert_expires_soon() {
+  local cert_path="certbot/conf/live/${DOMAIN_URL}/fullchain.pem"
+  if [ ! -f "$cert_path" ]; then
+    return 0  # Cert missing
+  fi
+  local expiry_date
+  expiry_date=$(openssl x509 -enddate -noout -in "$cert_path" | cut -d= -f2)
+  local expiry_ts=$(date -d "$expiry_date" +%s)
+  local now_ts=$(date +%s)
+  local days_left=$(( (expiry_ts - now_ts) / 86400 ))
+
+  [ "$days_left" -lt 14 ] && return 0 || return 1
+}
+
+# 🥚 Stage 1: Start HTTP-only stack
 echo "📦 Stage 1: Starting bootstrap stack..."
 if ! docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d >> logs/docker.log 2>&1; then
   echo "❌ Failed to start bootstrap containers. See logs/docker.log"
   exit 1
 fi
 
-sleep 5  # Give NGINX time to bind to port 80
+sleep 5  # Let NGINX bind to port 80
 
-# Run Certbot (issue if missing, or --force-cert)
-if [ "$1" = "--force-cert" ] || [ ! -f "certbot/conf/live/${DOMAIN_URL}/fullchain.pem" ]; then
-  echo "🔐 Running Certbot for domain: $DOMAIN_URL"
+# 🔐 Issue or renew cert if needed
+if cert_expires_soon; then
+  echo "🔐 Issuing or renewing cert for $DOMAIN_URL..."
   if ! docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml run --rm certbot certonly \
     --webroot -w /var/www/certbot \
     --email "$DOMAIN_EMAIL" \
@@ -54,19 +75,15 @@ if [ "$1" = "--force-cert" ] || [ ! -f "certbot/conf/live/${DOMAIN_URL}/fullchai
   fi
   echo "✅ Certbot successfully issued a certificate for $DOMAIN_URL"
 else
-  echo "✅ Existing cert found. Skipping Certbot."
+  echo "✅ Certificate is valid and not expiring soon. Skipping Certbot."
 fi
 
-# 🛡 Fix permissions on cert files
-echo "🔧 Fixing certbot permissions..."
-sudo chown -R $USER:$USER certbot/conf
-
-# Clean up bootstrap containers (free up port 80)
+# 🧹 Clean up bootstrap
 echo "🧹 Shutting down bootstrap containers..."
 docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down >> logs/docker.log 2>&1
 sleep 3
 
-# Add a safety timeout while waiting for the cert file
+# Wait until cert actually appears
 timeout=60
 while [ ! -f "certbot/conf/live/${DOMAIN_URL}/fullchain.pem" ] && [ $timeout -gt 0 ]; do
   echo "⏳ Waiting for fullchain.pem... ($timeout s remaining)"
@@ -79,19 +96,19 @@ if [ $timeout -eq 0 ]; then
   exit 1
 fi
 
-# Stage 2: Launch production stack (with HTTPS)
+# 🚀 Stage 2: Start production (HTTPS)
 echo "🚀 Launching production stack..."
 if ! docker-compose up -d >> logs/docker.log 2>&1; then
   echo "❌ Failed to start production containers. See logs/docker.log"
   exit 1
 fi
 
-# Start Ollama
+# 🦙 Start Ollama
 echo "🦙 Starting Ollama..."
 nohup ollama serve > logs/ollama.log 2>&1 &
 echo $! > logs/ollama.pid
 
-# Start FastAPI
+# ⚡ Start FastAPI
 echo "⚡ Starting FastAPI..."
 nohup uvicorn prompt_sql_runner:app --host 0.0.0.0 --port 8090 > logs/fastapi.log 2>&1 &
 echo $! > logs/fastapi.pid
