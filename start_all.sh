@@ -1,42 +1,63 @@
 #!/bin/bash
 
-echo "🧠 Starting LLaMA + MCP + FastAPI stack..."
+echo "🧠 Starting LLaMA + MCP + FastAPI stack (Staged SSL)..."
 
-# Create logs dir if it doesn't exist
 mkdir -p logs
 chmod 700 logs
 
-# Rotate logs (keep last 3 versions)
+# 🔁 Rotate logs
 for file in docker.log ollama.log fastapi.log; do
   [ -f logs/$file ] && mv logs/$file logs/$file.1
   [ -f logs/$file.1 ] && mv logs/$file.1 logs/$file.2
   [ -f logs/$file.2 ] && mv logs/$file.2 logs/$file.3
 done
 
-# Clean up stale PIDs
 rm -f logs/*.pid
 
-# 🐳 Start Docker MCP server
-echo "🐳 Starting Docker (MCP server)..."
-docker-compose up -d > logs/docker.log 2>&1
-echo "🔗 MCP Server:     http://localhost:8080"
+# 🥚 Stage 1: Bootstrap NGINX for Certbot
+echo "📦 Stage 1: Starting bootstrap stack..."
+docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d > logs/docker.log 2>&1
+
+# ⏳ Give NGINX time to boot
+sleep 5
+
+# 🔒 Run Certbot manually (only if cert doesn't exist)
+DOMAIN=$(grep DOMAIN_URL .env | cut -d '=' -f2)
+if [ ! -f "certbot/conf/live/${DOMAIN}/fullchain.pem" ]; then
+  echo "🔐 Running Certbot for domain: $DOMAIN"
+  docker-compose run --rm certbot certonly \
+    --webroot -w /var/www/certbot \
+    --email developer@routinehub.co \
+    --agree-tos \
+    --no-eff-email \
+    -d $DOMAIN >> logs/docker.log 2>&1
+else
+  echo "✅ Existing cert found. Skipping Certbot."
+fi
+
+# 🧹 Shut down bootstrap
+echo "🧹 Cleaning up bootstrap containers..."
+docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down
+
+# 🧠 Stage 2: Start full production stack
+echo "🚀 Launching full HTTPS stack..."
+docker-compose up -d >> logs/docker.log 2>&1
 
 # 🦙 Start Ollama
 echo "🦙 Starting Ollama..."
 nohup ollama serve > logs/ollama.log 2>&1 &
 echo $! > logs/ollama.pid
-echo "🔗 Ollama Server:  http://localhost:11434"
 
 # ⚡ Start FastAPI
 echo "⚡ Starting FastAPI server..."
 nohup uvicorn prompt_sql_runner:app --host 0.0.0.0 --port 8090 > logs/fastapi.log 2>&1 &
 echo $! > logs/fastapi.pid
-echo "🔗 FastAPI UI:     http://localhost:8090"
 
 chmod 600 logs/*.log
 
-# Wait a beat
-sleep 2
+echo ""
+echo "✅ All systems go!"
+echo "🔗 MCP:        https://$DOMAIN/mcp"
+echo "🔗 FastAPI UI: https://$DOMAIN"
+echo "📄 Logs:       ./logs/"
 
-echo -e "\n✅ All systems should be launching!"
-echo "📄 Logs live in ./logs/"
