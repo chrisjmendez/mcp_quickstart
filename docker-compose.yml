@@ -17,12 +17,12 @@ services:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
       - ./nginx/logs:/var/log/nginx
+    environment:
+      - DOMAIN_URL=${DOMAIN_URL}
     depends_on:
       - api-server
       - sqlite-mcp-server
     restart: unless-stopped
-    environment:
-      - DOMAIN_URL=${DOMAIN_URL}    
     entrypoint: >
       sh -c '
         until [ -f /etc/letsencrypt/live/${DOMAIN_URL}/fullchain.pem ]; do
@@ -32,7 +32,6 @@ services:
         echo "Certificate found, launching NGINX with HTTPS.";
         exec nginx -g "daemon off;";
       '
-
   # Claude MCP SQLite server
   sqlite-mcp-server:
     build:
