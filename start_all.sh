@@ -45,7 +45,10 @@ fi
 
 # 🧹 Shut down bootstrap
 echo "🧹 Cleaning up bootstrap containers..."
-docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down
+docker-compose -f docker-compose.yml -f docker-compose.bootstrap.yml down >> logs/docker.log 2>&1
+
+# ⏳ Give Docker time to release port 80
+sleep 3
 
 # 🚀 Stage 2: Start full HTTPS stack
 echo "🚀 Launching full HTTPS stack..."
