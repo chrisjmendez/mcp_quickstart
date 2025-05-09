@@ -41,6 +41,9 @@ if [ "$MODE" = "development" ]; then
   echo "🔗 MCP:        http://localhost:8080/mcp"
   echo "🔗 FastAPI UI: http://localhost:8090"
   echo ""
+  # Start Ollama in the background for dev
+  echo "🦙 Starting Ollama (dev mode)…"
+  nohup ollama serve > logs/ollama.log 2>&1 & echo $! > logs/ollama.pid
   echo "✅ Dev stack is running!"
   exit 0
 fi

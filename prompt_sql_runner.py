@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import requests
 import json
 import os
+import re
 
 app = FastAPI()
 
@@ -30,7 +31,15 @@ Columns:
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 
 def prompt_llama_for_sql(user_question):
-    system_prompt = f"You are an AI that converts natural language to SQL for this SQLite schema:\n{DB_SCHEMA}\n\nQuestion: {user_question}\nSQL:"
+    system_prompt = f"""
+You are an expert SQL generator. Given the following SQLite schema and a user question, write only the SQL query that answers the question.
+
+Schema:
+{DB_SCHEMA}
+
+Question: {user_question}
+SQL:
+"""
 
     payload = {
         "model": "codellama:instruct",
@@ -43,8 +52,15 @@ def prompt_llama_for_sql(user_question):
         res.raise_for_status()
         response = res.json()
         output = response.get("response", "")
+        print("LLM output:", output)  # Debug: print the raw LLM output
+        # Try to extract SQL from code blocks first
+        match = re.search(r"```sql\s*(.*?)```", output, re.DOTALL | re.IGNORECASE)
+        if match:
+            sql = match.group(1).strip()
+            return sql, output
+        # Fallback to line-by-line search
         sql_lines = [line for line in output.splitlines() if "select" in line.lower()]
-        return sql_lines[0] if sql_lines else "SELECT * FROM products LIMIT 5;", output
+        return sql_lines[0].strip() if sql_lines else "SELECT * FROM products LIMIT 5;", output
     except Exception as e:
         return "SELECT * FROM products LIMIT 5;", f"-- Error from LLaMA: {e}"
 
