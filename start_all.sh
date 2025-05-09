@@ -41,7 +41,7 @@ if [ "$MODE" = "development" ]; then
   echo "🔗 MCP:        http://localhost:8080/mcp"
   echo "🔗 FastAPI UI: http://localhost:8090"
   echo ""
-  # Start Ollama in the background for dev
+  # Start Ollama in the background for dev, always redirect output to logs/ollama.log
   echo "🦙 Starting Ollama (dev mode)…"
   nohup ollama serve > logs/ollama.log 2>&1 & echo $! > logs/ollama.pid
   echo "✅ Dev stack is running!"
@@ -112,6 +112,8 @@ echo "🚀 Stage 2: Launching full HTTPS stack…"
 docker-compose up -d >> logs/docker.log 2>&1
 
 # Ollama & FastAPI on host
+# Always redirect Ollama output to logs/ollama.log in production too
+mkdir -p logs
 echo "🦙 Starting Ollama…"
 nohup ollama serve > logs/ollama.log 2>&1 & echo $! > logs/ollama.pid
 
